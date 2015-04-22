@@ -23,6 +23,8 @@ the same data of the Model you are looking at.
 Credits
 =======
 
+Vertel AB
+
 Contributors
 ------------
 
