@@ -27,7 +27,7 @@
     'website': 'http://www.vertel.se',
     'license': 'AGPL-3',
     'depends': [
-        'web_export_view',
+#        'web_export_view',
     ],
     'data': [
         'view/web_export_view.xml',
