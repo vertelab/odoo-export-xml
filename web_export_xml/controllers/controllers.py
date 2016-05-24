@@ -60,8 +60,16 @@ def export_xml(lines):
                     elif values.get('type') in ['one2many']:  # Update from the other end
                         pass
                     elif values.get('type') in ['many2many']: # TODO
-                        etree.SubElement(record,'field',name=field,ref="%s %s" % (values.get('type'),eval('line.%s' % field)))
-            
+                        _logger.info("M2M = %s, %s" % (field,value)) 
+                         #~ if eval('line.%s' % field):                                     
+                            #~ k,id = eval('line.%s.get_external_id().items()[0]' % field) if eval('line.%s.get_external_id()' % field) else (0,"%s-%s" % (eval('line.%s._name' % field),eval('line.%s.id' % field)))
+                            #~ if id == "":
+                                #~ id = "%s-%s" % (eval('line.%s._name' % field),eval('line.%s.id' % field))
+                            #~ etree.SubElement(record,'field',name=field,ref="%s" % id)
+                        #~ 
+                        #~ etree.SubElement(record,'field',name=field,ref="%s %s" % (values.get('type'),eval('line.%s' % field)))
+                        
+    
     return document
 
 def get_related(models,depth):
