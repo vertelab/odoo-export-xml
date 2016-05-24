@@ -49,8 +49,12 @@ def export_xml(lines):
             for field,values in line.fields_get().items():
                 if not field in ['create_date','nessage_ids','id','write_date','create_uid','__last_update','write_uid',] + names:
                     if values.get('type') in ['boolean','char','text','float','integer','selection','date','datetime']:
-                        if eval('line.%s' % field):
+                        _logger.info("Simple field %s field %s values %s" % (values.get('type'),field,values))
+                        try:
+                        #if eval('line.%s' % field):
                             etree.SubElement(record,'field',name = field).text = "%s" % eval('line.%s' % field)
+                        except:
+                            pass
                     elif values.get('type') in ['many2one']:
                         if eval('line.%s' % field):                                     
                             k,id = eval('line.%s.get_external_id().items()[0]' % field) if eval('line.%s.get_external_id()' % field) else (0,"%s-%s" % (eval('line.%s._name' % field),eval('line.%s.id' % field)))
@@ -60,16 +64,28 @@ def export_xml(lines):
                     elif values.get('type') in ['one2many']:  # Update from the other end
                         pass
                     elif values.get('type') in ['many2many']: # TODO
-                        _logger.info("M2M = %s, %s" % (field,value)) 
-                         #~ if eval('line.%s' % field):                                     
-                            #~ k,id = eval('line.%s.get_external_id().items()[0]' % field) if eval('line.%s.get_external_id()' % field) else (0,"%s-%s" % (eval('line.%s._name' % field),eval('line.%s.id' % field)))
-                            #~ if id == "":
-                                #~ id = "%s-%s" % (eval('line.%s._name' % field),eval('line.%s.id' % field))
-                            #~ etree.SubElement(record,'field',name=field,ref="%s" % id)
-                        #~ 
-                        #~ etree.SubElement(record,'field',name=field,ref="%s %s" % (values.get('type'),eval('line.%s' % field)))
+                            # <field name="member_ids" eval="[(4, ref('base.user_root')),(4, ref('base.user_demo'))]"/>
+                        m2mvalues = []
+                        for val in line:
+                            id,external_id = 0,'' if not val.get_external_id() else val.get_external_id().items()[0]
+                            _logger.info("External id %s -> %s" % (id,external_id[1]))
+                            if len(external_id)>0:
+                                m2mvalues.append("(4, ref('%s'))" % external_id[1])
+#                            m2mvalues.append("(4, ref('%s'))" % val.get_external_id().items()[0] or '')
+                        if len(m2mvalues)>0:
+                            etree.SubElement(record,'field',name=field,eval="[%s]" % (','.join(m2mvalues)))
                         
-    
+                        #~ _logger.info("M2M values = %s -> %s" % (field,values))                                      
+                        #~ for val in line:
+                            #~ _logger.info("M2M = %s" % val)     
+                            #~ 
+                        #~ m2mvalues = []
+                        #~ for val in eval('line.%s' % field):
+                            #~ _logger.info('many2many %s ext-id %s' % (val,val.get_external_id().items()[0]))
+                            #~ m2mvalues.append("(4,ref='%s')" % val.get_external_id().items()[0])
+                        #~ etree.SubElement(record,'field',name=field,eval="[%s]" % (','.join(m2mvalues)))
+            
+         
     return document
 
 def get_related(models,depth):
@@ -80,6 +96,9 @@ def get_related(models,depth):
             for field,values in model.fields_get().items(): 
                 if not field in ['create_date','nessage_ids','id','write_date','create_uid','__last_update','write_uid']:
                     if values.get('type') in ['many2one']:
+                        for related in get_related(eval("model.%s" % field),depth+1):
+                            objects.add(related)
+                    if values.get('type') in ['many2many']:
                         for related in get_related(eval("model.%s" % field),depth+1):
                             objects.add(related)
             objects.add(model)
@@ -114,10 +133,24 @@ class XMLExport(http.Controller):
             ]
         )
         
+
+    #~ @http.route('/model/<model("ir.model"):model>/all/xml', type='http', auth='public')
+    #~ def export_xls_view(self, model=False, res_id=None):     
+        #~ document = etree.tostring(export_xml(get_related(request.registry[model.model].browse(request.cr,request.uid,request.registry[model.model].search(request.cr,request.uid,[])),0)),pretty_print=True,encoding="utf-8")
+        #~ return request.make_response(
+            #~ document,
+            #~ headers=[
+                #~ ('Content-Disposition', 'attachment; filename="%s.xml"' % model.model),
+                #~ ('Content-Type', 'application/rdf+xml'),
+                #~ ('Content-Length', len(document)),
+            #~ ]
+        #~ )
+
         
-    @http.route('/web/export/<model("ir.model"):model>/<int:res_id>/xml', type='http', auth='public')
-    def export_xls_view(self, model=False, res_id=None):     
-        document = etree.tostring(export_xml(get_related(request.registry[model.model].browse(request.cr,request.uid,res_id),0)),pretty_print=True,encoding="utf-8")
+    @http.route('/model/<model("ir.model"):model>/<int:res_id>/xml', type='http', auth='public')
+    def export_xls_view(self, model=False, res_id=None):
+        records =  res_id if res_id else request.registry[model.model].search(request.cr,request.uid,[])
+        document = etree.tostring(export_xml(get_related(request.registry[model.model].browse(request.cr,request.uid,records),0)),pretty_print=True,encoding="utf-8")
         return request.make_response(
             document,
             headers=[
@@ -126,3 +159,17 @@ class XMLExport(http.Controller):
                 ('Content-Length', len(document)),
             ]
         )
+
+    @http.route('/mod/<string:model>/<int:res_id>/xml', type='http', auth='public')
+    def export_xls_view(self, model=False, res_id=None):
+        records =  res_id if res_id else request.registry[model].search(request.cr,request.uid,[])
+        document = etree.tostring(export_xml(get_related(request.registry[model].browse(request.cr,request.uid,records),0)),pretty_print=True,encoding="utf-8")
+        return request.make_response(
+            document,
+            headers=[
+                ('Content-Disposition', 'attachment; filename="%s.xml"' % model),
+                ('Content-Type', 'application/rdf+xml'),
+                ('Content-Length', len(document)),
+            ]
+        )
+
