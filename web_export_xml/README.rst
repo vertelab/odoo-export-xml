@@ -51,7 +51,7 @@ example:
 Credits
 =======
 
-Vertel AB
+Vertel Sverige AB
 
 Contributors
 ------------
